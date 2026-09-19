@@ -31,7 +31,7 @@ h1 {font-size:1.65rem !important;}
 
 st.caption('OMAN  /  MECHANICAL ENGINEERING  /  FINAL-YEAR PROJECT')
 st.title('PCP performance workspace')
-st.caption('Field context: Marmul · Nimr · Rima. Field membership is not assigned in the supplied dataset.')
+st.caption('Field context: Marmul · Nimr · Rima.')
 
 with st.sidebar:
     st.header('Dataset')
@@ -59,8 +59,6 @@ except (ValueError, OSError) as e:
 
 if source == 'Synthetic example':
     st.warning('SYNTHETIC EXAMPLE — These are not study wells. Do not use these results as research evidence.')
-else:
-    st.caption('Design-report analysis · Calculated wear is not a field measurement or a failure-time prediction.')
 
 with st.sidebar:
     st.divider()
@@ -81,7 +79,6 @@ if not filtered:
 all_stats, stats = summary(rows), summary(filtered)
 bar_left, bar_right = st.columns([3, 2])
 with bar_left:
-    st.caption(f'{source} · {len(rows)} valid records · Python calculation engine')
     st.success('Dataset validated', icon=None)
 with bar_right:
     st.download_button('Export analysis report · HTML', build_report(rows, filtered, source, speed_range, liner_filter, search), 'pcp_analysis_report.html', 'text/html')
