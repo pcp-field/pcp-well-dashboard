@@ -7,74 +7,92 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import streamlit as st
 from analysis import load_rows, summary, rank, groups, csv_bytes, LINERS
+from reporting import build_report
 
 ROOT = Path(__file__).resolve().parent
 st.set_page_config(page_title='PCP | Well Explorer', page_icon='◉', layout='wide')
 st.markdown('''<style>
-.stApp {background:#f7f8fa;}
-.block-container {padding-top:4rem;max-width:1400px;}
+.stApp {background:#f7f7f3;}
+.block-container {padding-top:3rem;max-width:1440px;}
 h1,h2,h3 {color:#132f43;}
-[data-testid="stMetric"] {background:white;border:1px solid #e0e7ec;border-radius:12px;padding:18px;}
-[data-testid="stMetricValue"] {color:#007f80;}
-[data-testid="stSidebar"] {background:#edf3f5;}
+h1 {font-size:2rem !important;padding-bottom:.35rem !important;}
+h2,h3 {font-size:1.25rem !important;}
+[data-testid="stMetric"] {background:white;border:1px solid #e0e7ec;border-radius:6px;padding:14px;}
+[data-testid="stMetricValue"] {color:#487c79;font-size:1.8rem;}
+[data-testid="stSidebar"] {background:#efefea;}
 [data-testid="stCaptionContainer"] {color:#526775;}
+@media (max-width: 760px) {
+.block-container {padding:4rem 1rem 1rem;}
+h1 {font-size:1.65rem !important;}
+[data-testid="stMetric"] {padding:12px;}
+[data-baseweb="tab-list"] {overflow-x:auto;}
+}
 </style>''', unsafe_allow_html=True)
 
-st.caption('MECHANICAL PERFORMANCE  /  PROGRESSIVE CAVITY PUMPS')
-st.title('PCP Well Explorer')
-st.markdown('**تحليل أداء الآبار** — ترتيب التآكل، مقارنة البطانة، واستكشاف ظروف التشغيل.')
+st.caption('OMAN  /  MECHANICAL ENGINEERING  /  FINAL-YEAR PROJECT')
+st.title('PCP performance workspace')
+st.caption('Field context: Marmul · Nimr · Rima. Field membership is not assigned in the supplied dataset.')
 
 with st.sidebar:
-    st.header('مصدر البيانات')
+    st.header('Dataset')
     local = ROOT / 'data' / 'wells_private.csv'
-    options = ['بيانات المشروع المحلية', 'بيانات تجريبية', 'رفع ملف CSV'] if local.exists() else ['بيانات تجريبية', 'رفع ملف CSV']
-    source = st.radio('اختر البيانات', options, key='source')
-    uploaded = st.file_uploader('ملف بيانات الآبار', type=['csv'], key='upload') if source == 'رفع ملف CSV' else None
-    st.download_button('تنزيل قالب CSV', (ROOT / 'data/template.csv').read_bytes(), 'template.csv', 'text/csv')
-    st.caption('الملف التجريبي للتجربة فقط. بيانات المشروع المحلية مستبعدة من GitHub.')
+    options = ['Local project data', 'Synthetic example', 'Upload CSV'] if local.exists() else ['Synthetic example', 'Upload CSV']
+    source = st.radio('Data source', options, key='source')
+    uploaded = st.file_uploader('Well dataset (CSV)', type=['csv'], key='upload') if source == 'Upload CSV' else None
+    st.download_button('Download CSV template', (ROOT / 'data/template.csv').read_bytes(), 'template.csv', 'text/csv')
+    st.caption('Synthetic data is for demonstration only. Local project data is excluded from GitHub.')
 
-if source == 'رفع ملف CSV' and uploaded is None:
-    st.info('ارفع ملف CSV للبدء. القالب في القائمة الجانبية يوضح الأعمدة المطلوبة.')
+if source == 'Upload CSV' and uploaded is None:
+    st.info('Upload a CSV to begin. The sidebar template lists the required columns.')
     st.stop()
 try:
-    if source == 'رفع ملف CSV':
+    if source == 'Upload CSV':
         raw = uploaded.getvalue()
     else:
-        raw = (local if source == 'بيانات المشروع المحلية' else ROOT / 'data/demo.csv').read_bytes()
-    rows = load_rows(raw)
+        raw = (local if source == 'Local project data' else ROOT / 'data/demo.csv').read_bytes()
+    with st.spinner('Validating and loading well data…'):
+        rows = load_rows(raw)
 except (ValueError, OSError) as e:
-    st.error(str(e))
+    st.error('Dataset could not be loaded. ' + str(e))
+    st.caption('Correct the file and upload it again. Required columns are listed in the CSV template.')
     st.stop()
 
-if source == 'بيانات تجريبية':
-    st.warning('بيانات اصطناعية للتجربة — ليست آبار الدراسة ولا تصلح للاستشهاد بها كنتائج بحث.')
+if source == 'Synthetic example':
+    st.warning('SYNTHETIC EXAMPLE — These are not study wells. Do not use these results as research evidence.')
 else:
-    st.info('النتائج وصفية لمخرجات تقارير التصميم؛ لا تمثل قياسات تآكل ميدانية أو تنبؤًا بموعد الفشل.')
+    st.caption('Design-report analysis · Calculated wear is not a field measurement or a failure-time prediction.')
 
 with st.sidebar:
     st.divider()
-    st.header('تصفية الآبار')
-    liner_filter = st.multiselect('نوع البطانة', LINERS, default=LINERS, key='liner_filter')
+    st.header('Filters')
+    liner_filter = st.multiselect('Tubing liner', LINERS, default=LINERS, key='liner_filter')
     speed_low = min(r['pump_speed_rpm'] for r in rows)
     speed_high = max(r['pump_speed_rpm'] for r in rows)
-    speed_range = st.slider('السرعة RPM', speed_low, speed_high, (speed_low, speed_high), key='speed') if speed_low < speed_high else (speed_low, speed_high)
+    speed_range = st.slider('Pump speed (RPM)', speed_low, speed_high, (speed_low, speed_high), key='speed') if speed_low < speed_high else (speed_low, speed_high)
     if speed_low == speed_high:
-        st.caption(f'سرعة جميع الآبار: {speed_low:g} RPM')
-    search = st.text_input('ابحث باسم البئر', key='search')
-    st.caption('المؤشرات والمقارنات تتحدث حسب التصفية. متوسط الملف الكامل يظهر منفصلًا على رسم الترتيب.')
+        st.caption(f'All wells operate at: {speed_low:g} RPM')
+    search = st.text_input('Search well name', key='search')
+    st.caption('Metrics and comparisons use filtered wells. The ranking reference line uses the full dataset.')
 
 filtered = [r for r in rows if r['tubing_liner_source'] in liner_filter and speed_range[0] <= r['pump_speed_rpm'] <= speed_range[1] and search.strip().casefold() in r['well_name'].casefold()]
 if not filtered:
-    st.warning('لا توجد آبار تطابق التصفية. عدّل الاختيارات في القائمة الجانبية.')
+    st.warning('No matching wells. Adjust the liner, speed, or well-name filters.')
     st.stop()
 all_stats, stats = summary(rows), summary(filtered)
-st.caption(f"الآبار المعروضة: {len(filtered)} من {len(rows)} | الوحدات: التآكل %/سنة، السرعة RPM")
+bar_left, bar_right = st.columns([3, 2])
+with bar_left:
+    st.caption(f'{source} · {len(rows)} valid records · Python calculation engine')
+    st.success('Dataset validated', icon=None)
+with bar_right:
+    st.download_button('Export analysis report · HTML', build_report(rows, filtered, source, speed_range, liner_filter, search), 'pcp_analysis_report.html', 'text/html')
+
+st.caption(f"Selected wells: {len(filtered)} of {len(rows)} | Units: wear %/year; speed RPM")
 cols = st.columns(4)
-for col, label, value in zip(cols, ['عدد الآبار المعروضة', 'متوسط التآكل %/سنة', 'متوسط السرعة RPM', 'نتائج تآكل بصفر'], [stats['count'], f"{stats['mean_wear']:.2f}", f"{stats['mean_speed']:.2f}", stats['zero_count']]):
+for col, label, value in zip(cols, ['Selected wells', 'Mean wear (%/year)', 'Mean speed (RPM)', 'Calculated zeros'], [stats['count'], f"{stats['mean_wear']:.2f}", f"{stats['mean_speed']:.2f}", stats['zero_count']]):
     col.metric(label, value)
 
 plt.rcParams.update({'font.family': 'DejaVu Sans', 'font.size': 10, 'axes.spines.top': False, 'axes.spines.right': False, 'axes.labelcolor': '#334b5a', 'text.color': '#193447', 'figure.facecolor': 'white'})
-COLORS = {'HDPE Liner': '#008b89', 'No Liner/Coating': '#477ea6'}
+COLORS = {'HDPE Liner': '#487c79', 'No Liner/Coating': '#8b99a5'}
 
 def chart(fig, filename):
     """Display a figure and supply an independent 300-dpi PNG download."""
@@ -82,52 +100,52 @@ def chart(fig, filename):
     buffer = io.BytesIO()
     fig.savefig(buffer, format='png', dpi=300, bbox_inches='tight')
     st.pyplot(fig, width='stretch')
-    st.download_button('تنزيل الرسم PNG', buffer.getvalue(), filename, 'image/png', key=filename)
+    st.download_button('Download chart · PNG', buffer.getvalue(), filename, 'image/png', key=filename)
     plt.close(fig)
 
-ranking, comparison, relation, details = st.tabs(['ترتيب الآبار', 'مقارنة البطانة', 'السرعة والتآكل', 'بيانات ومصادر'])
+ranking, comparison, relation, details = st.tabs(['Well ranking', 'Liner comparison', 'Speed and wear', 'Data and provenance'])
 with ranking:
-    st.subheader('الآبار حسب معدل التآكل المحسوب')
+    st.subheader('Rank wells by calculated tubing wear')
     left, right = st.columns([1, 2])
     with left:
-        order = st.radio('الترتيب', ['الأعلى أولًا', 'الأقل أولًا'], horizontal=True, key='order')
-        count = st.number_input('عدد الآبار في الرسم', min_value=1, max_value=min(20, len(filtered)), value=min(5, len(filtered)), step=1, key='count')
-        show_mean = st.checkbox('إظهار متوسط الملف الكامل', value=True)
-        st.caption('خط المتوسط مرجع وصفي، وليس حدًا للسلامة. تعادل القيم يُرتّب حسب اسم البئر.')
-    selected = rank(filtered, int(count), order == 'الأعلى أولًا')
+        order = st.radio('Order', ['Highest first', 'Lowest first'], horizontal=True, key='order')
+        count = st.number_input('Wells to display', min_value=1, max_value=min(20, len(filtered)), value=min(5, len(filtered)), step=1, key='count')
+        show_mean = st.checkbox('Show full-dataset mean', value=True)
+        st.caption('The mean is a descriptive reference, not a safety limit. Equal values are ordered by well name.')
+    selected = rank(filtered, int(count), order == 'Highest first')
     with right:
         fig, ax = plt.subplots(figsize=(9, max(3.5, len(selected) * .37)))
-        bars = ax.barh([r['well_name'] for r in selected], [r['wear_rate'] for r in selected], color='#008b89')
+        bars = ax.barh([r['well_name'] for r in selected], [r['wear_rate'] for r in selected], color='#487c79')
         ax.invert_yaxis()
         ax.bar_label(bars, fmt='%.2f', padding=5)
         if show_mean:
-            ax.axvline(all_stats['mean_wear'], color='#bb6940', linestyle='--', label=f"Full dataset mean: {all_stats['mean_wear']:.2f} (n={len(rows)})")
+            ax.axvline(all_stats['mean_wear'], color='#193447', linestyle='--', label=f"Full dataset mean: {all_stats['mean_wear']:.2f} (n={len(rows)})")
             ax.legend(loc='lower right', fontsize=8)
         maximum = max([r['wear_rate'] for r in selected] + ([all_stats['mean_wear']] if show_mean else []))
         ax.set_xlim(0, max(1, maximum) * 1.2)
         ax.set_xlabel('Maximum calculated tubing wear (%/year)')
-        ax.set_title(('Highest' if order == 'الأعلى أولًا' else 'Lowest') + f' {len(selected)} wells in selected data')
+        ax.set_title(('Highest' if order == 'Highest first' else 'Lowest') + f' {len(selected)} wells in selected data')
         chart(fig, 'ranked_wells.png')
-    st.dataframe(pd.DataFrame(selected)[['well_name', 'wear_rate', 'pump_speed_rpm', 'tubing_liner_source']], hide_index=True, width='stretch')
-    st.download_button('تنزيل الآبار المرتبة CSV', csv_bytes(selected), 'ranked_wells.csv', 'text/csv')
+    st.dataframe(pd.DataFrame(selected)[['well_name', 'wear_rate', 'pump_speed_rpm', 'tubing_liner_source']].rename(columns={'well_name': 'Well', 'wear_rate': 'Wear (%/year)', 'pump_speed_rpm': 'Speed (RPM)', 'tubing_liner_source': 'Liner'}), hide_index=True, width='stretch')
+    st.download_button('Download ranked wells · CSV', csv_bytes(selected), 'ranked_wells.csv', 'text/csv')
 
 with comparison:
-    st.subheader('مقارنة المجموعتين في البيانات المعروضة')
+    st.subheader('Compare liner groups in the selected data')
     group_stats = groups(filtered)
     present = {k: v for k, v in group_stats.items() if v}
     table = [{'Liner': k, 'Wells': v['count'], 'Mean wear (%/year)': round(v['mean_wear'], 2), 'Mean speed (RPM)': round(v['mean_speed'], 2)} for k, v in present.items()]
     st.dataframe(pd.DataFrame(table), hide_index=True, width='stretch')
     if len(present) < 2:
-        st.info('تحتاج المقارنة إلى آبار من كلا النوعين. عدّل التصفية أو البيانات.')
+        st.info('Both liner groups are needed for a comparison. Adjust your filters or dataset.')
     else:
         hdpe, unlined = group_stats[LINERS[0]], group_stats[LINERS[1]]
         difference = unlined['mean_wear'] - hdpe['mean_wear']
-        st.metric('فرق المتوسطين: بدون بطانة ناقص HDPE (%/سنة)', f'{difference:.2f}')
+        st.metric('Mean difference: unlined minus HDPE (%/year)', f'{difference:.2f}')
         if unlined['mean_wear'] != 0:
             pct = difference / unlined['mean_wear'] * 100
-            st.caption(f'الفرق النسبي باستخدام مجموعة بدون بطانة كمرجع: {pct:.2f}%. الموجب يعني متوسط HDPE أقل، والسالب يعني أنه أعلى.')
+            st.caption(f'Relative difference, with the unlined group as reference: {pct:.2f}%. A positive value means the HDPE mean is lower; a negative value means it is higher.')
         else:
-            st.caption('الفرق النسبي غير معرّف لأن متوسط المجموعة المرجعية صفر.')
+            st.caption('Relative difference is undefined because the reference-group mean is zero.')
     if present:
         fig, ax = plt.subplots(figsize=(8, 4))
         labels = [f"{'HDPE' if k == LINERS[0] else 'No liner/coating'}\n(n={v['count']})" for k, v in present.items()]
@@ -138,10 +156,10 @@ with comparison:
         ax.set_ylabel('Mean calculated tubing wear (%/year)')
         ax.set_title('Liner comparison in selected data')
         chart(fig, 'liner_comparison.png')
-    st.caption('مقارنة وصفية لا تعزل تأثير البطانة عن السرعة أو ظروف التشغيل أو اختلاف إعدادات التصميم. المتوسطات ليست ضمانًا لنسبة تحسن عند تغيير البطانة.')
+    st.caption('This descriptive comparison does not isolate liner effects from speed, operating conditions, or design settings. It is not a guaranteed improvement from fitting a liner.')
 
 with relation:
-    st.subheader('كل نقطة تمثل بئرًا')
+    st.subheader('Inspect individual wells')
     fig, ax = plt.subplots(figsize=(9, 5))
     for liner in reversed(LINERS):
         group = [r for r in filtered if r['tubing_liner_source'] == liner]
@@ -153,21 +171,22 @@ with relation:
     ax.legend()
     ax.grid(alpha=.15)
     chart(fig, 'speed_vs_wear.png')
-    st.caption('قد تتداخل نقاط متطابقة. الرسم يوضح العلاقات ولا يثبت أن عاملًا واحدًا سبب الاختلاف. لا تُستنتج نتائج خارج نطاق السرعات الموجود.')
+    st.caption('Identical points can overlap. The plot shows associations, not causation. Do not extrapolate beyond the observed speed range.')
 
 with details:
-    st.subheader('بيانات البئر ومصدر القيم')
-    chosen = st.selectbox('اختر بئرًا', [r['well_name'] for r in filtered], key='well')
+    st.subheader('Well record and source references')
+    st.caption('PIPESIM 2023 is supplementary. No live connection or PIPESIM results are used in these calculations.')
+    chosen = st.selectbox('Select a well', [r['well_name'] for r in filtered], key='well')
     well = next(r for r in filtered if r['well_name'] == chosen)
     st.dataframe(pd.DataFrame([{'Field': k, 'Value': str(v)} for k, v in well.items()]), hide_index=True, width='stretch')
-    st.download_button('تنزيل البيانات المعروضة CSV', csv_bytes(filtered), 'filtered_wells.csv', 'text/csv')
-    with st.expander('طريقة التحليل وحدود النتائج', expanded=True):
-        st.markdown('''- المتوسط هو مجموع القيم مقسومًا على عدد الآبار، بأوزان متساوية.
-- القيم المئوية مخزنة كما تظهر في التقرير: 15 تعني 15%/سنة، ولا تُضرب في 100.
-- التآكل الصفري في بعض تقارير PC-PUMP لا يثبت غياب التآكل الفعلي؛ بعض المكونات لا يُحسب تآكلها الداخلي.
-- عند توفر حقول المصدر، راجع إصدار البرنامج وملاحظات معاملات التصحيح قبل المقارنة. تُعرض نتائج التقرير كما هي دون إعادة تطبيق المعامل.
-- هذه الأداة للتحليل الوصفي؛ لا تحسب وقت الفشل أو حدود تشغيل آمنة.
-- التحليلات تعمل على البيانات بعد التصفية، باستثناء خط متوسط الملف الكامل في رسم الترتيب.''')
+    st.download_button('Download selected data · CSV', csv_bytes(filtered), 'filtered_wells.csv', 'text/csv')
+    with st.expander('Method and limitations', expanded=True):
+        st.markdown('''- The mean is the sum divided by the well count, with equal weight per well.
+- Percentage values match the reports: 15 means 15%/year, not 0.15.
+- A calculated zero does not establish absence of physical wear. Some component-internal wear is excluded by the source model.
+- Review source software versions and wear-factor notes before comparisons. Reported values are preserved without reapplying correction factors.
+- This tool does not estimate failure dates or safe operating limits.
+- Analyses use filtered data, except the full-dataset mean reference in the ranking chart.''')
 
 st.divider()
-st.caption('PCP Well Explorer · Python + Streamlit · ملف البيانات الأصلي لا يُعدّل أثناء التحليل.')
+st.caption('PCP Well Explorer · Python + Streamlit · Source data is not modified during analysis.')

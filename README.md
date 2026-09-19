@@ -1,12 +1,10 @@
-# PCP Well Explorer
+# PCP performance workspace
 
-واجهة Python تفاعلية لتحليل مؤشرات التآكل في تقارير تصميم مضخات PCP. تجمع البرنامج التعليمي في أربع صفحات: ترتيب الآبار، مقارنة البطانة، علاقة السرعة بالتآكل، والبيانات مع مصادرها.
+A local Python engineering application for a final-year PCP performance study in Oman, with field context from Marmul, Nimr, and Rima. It provides well rankings, tubing-liner comparisons, speed-versus-wear plots, traceable well records, and printable analysis reports. All interface text, documentation, charts, and reports are in English.
 
-## التشغيل على Mac
+## Run on macOS
 
-يتطلب Python 3.11 أو أحدث. تم اختباره على Python 3.14.
-
-بعد تنزيل المشروع، افتح مجلده في Terminal ثم نفّذ:
+Use Python 3.11 or later (tested on Python 3.14). In the project folder:
 
 ```bash
 python3 -m venv .venv
@@ -15,57 +13,69 @@ python -m pip install -r requirements.txt
 python -m streamlit run app.py --server.address 127.0.0.1
 ```
 
-يفتح البرنامج في المتصفح على جهازك. لإيقافه استخدم Control+C في Terminal. يمكن على Mac أيضًا تشغيل `Start.command` من مجلد المشروع؛ أول تشغيل يثبت المكتبات من PyPI عند الحاجة.
+Alternatively run `Start.command`. It creates an isolated environment and installs the pinned requirements if needed. Keep the terminal open while using the application. Press Control+C to stop. The browser address is normally `http://127.0.0.1:8501`.
 
-## البيانات
+GitHub stores the source code; it does not run the Python server. A phone or tablet can use the responsive interface when it can access a separately configured server. A localhost address on this Mac is not accessible from another device.
 
-المستودع يحتوي بيانات **اصطناعية** في `data/demo.csv` وقالب عناوين فقط في `data/template.csv`. هذه الأمثلة ليست بيانات دراسة ولا يجوز عرض نتائجها بوصفها نتائج حقيقية.
+## Source inspection and preserved calculations
 
-لا يتضمن المستودع تقارير PDF أو بيانات الآبار الحقيقية. لاستخدام بياناتك، اختر رفع CSV من الواجهة، أو ضع نسخة محلية في `data/wells_private.csv`. هذا الملف مستبعد من Git. لا ترفعه باستخدام `git add -f`.
+The original student scripts are `read_wells.py`, `compare_liners.py`, and `speed_vs_wear.py`. The interface uses the same calculations:
 
-ملفات CSV تحتاج ترميز UTF-8 وفواصل عادية. الحد الأقصى 5 MB و10000 بئر. اسم كل بئر يجب أن يكون فريدًا. القيم المفقودة أو غير الرقمية أو السالبة في الحقول المطلوبة تُرفض بدل تحويلها إلى صفر.
+- Numeric sorting by maximum calculated tubing wear, ascending or descending.
+- Equal-weight arithmetic means of wear and pump speed.
+- Grouping by the exact reported tubing-liner description.
+- Mean difference: unlined mean minus HDPE mean.
+- Relative difference: mean difference divided by the unlined mean, multiplied by 100. A zero reference mean produces an unavailable result, not zero.
+- Scatter plots of reported pump speed versus reported maximum tubing wear.
 
-| العمود | المعنى |
+No new wear equation, prediction model, failure-time estimate, optimization model, or safety classification is introduced. Values come from PC-PUMP design reports. PIPESIM 2023 is supplementary; there is no live connection, dependency, or simulated PIPESIM output in this application. The supplied CSV has no verified field-membership column, so field assignments are not inferred from well names. See `ENGINEERING_NOTES.md` for units and limitations.
+
+## Data sources
+
+The repository contains only synthetic example data (`data/demo.csv`) and a header-only CSV template. Synthetic results are explicitly labelled and are not research evidence. Original PDF reports and actual well data are excluded from GitHub.
+
+To use actual data, choose **Upload CSV**, or place an authorized local copy at `data/wells_private.csv`. This file is excluded by `.gitignore`. Uploads are processed in memory; they do not overwrite the input files. While running locally, the browser sends uploaded data to the local Python server. On any future hosted deployment, uploads would instead go to that deployment's server.
+
+Required CSV columns:
+
+| Column | Unit or accepted value |
 |---|---|
-| `well_name` | اسم البئر |
-| `wear_rate` | أقصى معدل تآكل محسوب، %/سنة، مثل 15.2 وليس 0.152 |
-| `pump_speed_rpm` | سرعة المضخة RPM |
-| `tubing_liner_source` | `HDPE Liner` أو `No Liner/Coating` |
+| `well_name` | Unique well identifier, at most 100 characters |
+| `wear_rate` | Maximum calculated tubing wear, %/year; 15 means 15%/year |
+| `pump_speed_rpm` | Pump speed in RPM |
+| `tubing_liner_source` | `HDPE Liner` or `No Liner/Coating` |
 
-الحقول الإضافية مثل `source_file` و`wear_page` و`analysis_page` و`completion_page` و`pc_pump_version` و`wear_notes` تظهر في تفاصيل البئر لتتبّع المصدر. `rod_torque_load_pct` نسبة حمل عزم وليست عزمًا بوحدة N·m.
+Use comma-separated UTF-8 data. Files are limited to 5 MB and 10,000 wells. Missing required values, duplicate identifiers, unknown liners, negative numbers, NaN, and infinity are rejected. Valid zero values are retained. Optional source fields appear in the well-record view and exported report.
 
-عند تشغيل التطبيق على جهازك ترتفع البيانات من المتصفح إلى خادم Python المحلي فقط؛ لا يوجد في الكود إرسال إلى خدمات خارجية. إذا استضفت التطبيق لاحقًا على خادم خارجي، فإن رفع CSV يرسل البيانات إلى ذلك الخادم. حفظ الكود على GitHub ليس استضافة للتطبيق.
+## Workspace
 
-## الاستخدام
+1. Select the local dataset, synthetic example, or upload a CSV.
+2. Filter by liner, speed range, and well name. Metrics and group comparisons use the selected wells.
+3. Choose highest or lowest wear and the number of wells to display. The optional mean reference uses the full dataset and states its size.
+4. Inspect group counts, wear means, speed means, and relative differences.
+5. Inspect individual wells and source PDF page references.
+6. Download charts as 300-dpi PNG files or data as CSV. Download the self-contained English HTML report from the top toolbar; open it in a browser and print or save as PDF.
 
-1. اختر الملف المحلي أو البيانات التجريبية أو ارفع CSV.
-2. صفِّ حسب البطانة والسرعة والاسم. المؤشرات والتحليلات تُحسب للآبار بعد التصفية.
-3. رتّب الأعلى أو الأقل تآكلًا واختر عدد الآبار. خط المتوسط في رسم الترتيب يعود للملف الكامل، وموسوم بعدده.
-4. قارن متوسط التآكل ومتوسط السرعة وأعداد الآبار بين المجموعتين.
-5. افتح رسم السرعة والتآكل. النقاط المتطابقة قد تتداخل.
-6. اختر بئرًا لعرض قيمه ومصدرها. نزّل الرسومات PNG بدقة 300 dpi أو جداول CSV.
+The report records generation time in UTC, source type, active filters, sample sizes, descriptive results, limitations, and per-well source references. Browser print layout may vary. Reports and PNG files are generated from the current data, never illustrative engineering results.
 
-## فهم الكود
+## Code structure
 
-- `analysis.py`: قراءة CSV، التحقق من القيم، المتوسطات، الترتيب، وتصدير البيانات. هذه وظائف Python مستقلة عن الواجهة.
-- `app.py`: عناصر الواجهة، اختيار البيانات، المرشحات، الرسومات وأزرار التنزيل.
-- `tests/test_analysis.py`: اختبارات الحسابات والمدخلات غير الصالحة.
-- `.gitignore`: يستبعد البيانات الخاصة والبيئة البرمجية وملفات التقارير.
+| File | Responsibility |
+|---|---|
+| `analysis.py` | CSV validation, grouping, summaries, ranking, and safe CSV export |
+| `app.py` | English Streamlit interface and Matplotlib figures |
+| `reporting.py` | Self-contained printable HTML reports using the same analysis functions |
+| `tests/` | Calculation, validation, report, and interface tests |
+| `.streamlit/config.toml` | Restrained theme and upload size limit |
 
-`st.radio` بديل سؤال `input`، و`st.metric` بديل عرض رقم بواسطة `print`، و`st.pyplot` يعرض رسم Matplotlib داخل الصفحة. يعيد Streamlit تنفيذ الملف عند تغيير الخيارات.
-
-## حدود التفسير
-
-هذه تحليلات وصفية لمخرجات تقارير التصميم، وليست قياسات تآكل ميدانية أو تنبؤًا بموعد الفشل. لا تُستخدم المتوسطات كحدود سلامة. المقارنة بين البطانة لا تعزل السرعة أو ظروف التشغيل. راجع إصدار PC-PUMP ومعاملات تصحيح التآكل في كل تقرير؛ لا يُعاد تطبيق المعامل على القيم المنشورة. الصفر المحسوب لا يثبت غياب التآكل داخل المكونات التي يستثنيها النموذج.
-
-يحسَب الفرق النسبي = (متوسط بدون بطانة − متوسط HDPE) ÷ متوسط بدون بطانة × 100. لا يُحسب عندما يكون المقام صفرًا؛ ولا يُعرض كتأثير سببي أو تحسن مضمون.
-
-## التوثيق الأكاديمي
-
-احتفظ بنسخة البيانات وتقارير المصدر، والكود النهائي، وصور تشغيل الواجهة، والرسومات المصدّرة. سجّل أي تصحيحات للبيانات وتحقق من مصادرها. طُوّرت هذه الواجهة بمساعدة الذكاء الاصطناعي انطلاقًا من تمارين التحليل؛ راجع الكود والنتائج وصرّح بالمساعدة وفق سياسة الكلية. لا تُنسب البيانات التجريبية للدراسة.
-
-## الاختبارات
+## Validation
 
 ```bash
 python -m unittest discover -s tests -v
 ```
+
+The interface tests use synthetic data, including when private data is present. Local regression checks additionally compare the source data to the student's earlier output. No actual well records are included in repository tests.
+
+## Academic documentation
+
+Retain original source reports, extraction records, final code, interface screenshots, and exported figures. Explain the Python calculations and source limitations during the presentation. This interface was developed with AI assistance from the student's existing exercises; follow the institution's disclosure requirements.

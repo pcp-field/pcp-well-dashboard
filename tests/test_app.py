@@ -6,11 +6,11 @@ from streamlit.testing.v1 import AppTest
 class InterfaceTests(unittest.TestCase):
     def test_demo_and_filters(self):
         at=AppTest.from_file(str(Path(__file__).resolve().parents[1] / 'app.py'), default_timeout=40)
-        at.session_state['source']='بيانات تجريبية'
+        at.session_state['source']='Synthetic example'
         at.run()
         self.assertFalse(at.exception)
         self.assertEqual(at.metric[0].value,'8')
-        at.radio(key='order').set_value('الأقل أولًا').run()
+        at.radio(key='order').set_value('Lowest first').run()
         self.assertFalse(at.exception)
         at.multiselect(key='liner_filter').set_value(['HDPE Liner']).run()
         self.assertEqual(at.metric[0].value,'3')

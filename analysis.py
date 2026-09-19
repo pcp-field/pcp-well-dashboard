@@ -11,44 +11,44 @@ OPTIONAL_NUMERIC = ['rod_torque_load_pct', 'rod_stress_pct', 'produced_rate_m3_d
 
 def load_rows(raw):
     if len(raw) > 5 * 1024 * 1024:
-        raise ValueError('حجم الملف يجب ألا يتجاوز 5 ميجابايت.')
+        raise ValueError('File size must not exceed 5 MB.')
     try:
         text = raw.decode('utf-8-sig')
     except UnicodeDecodeError:
-        raise ValueError('احفظ الملف بصيغة CSV UTF-8.') from None
+        raise ValueError('Save the file as a UTF-8 CSV.') from None
     reader = csv.DictReader(io.StringIO(text))
     headers = reader.fieldnames or []
     if len(headers) != len(set(headers)):
-        raise ValueError('يوجد اسم عمود مكرر.')
+        raise ValueError('Duplicate column names are not allowed.')
     missing = set(REQUIRED) - set(headers)
     if missing:
-        raise ValueError('أعمدة مطلوبة غير موجودة: ' + ', '.join(sorted(missing)))
+        raise ValueError('Missing required columns: ' + ', '.join(sorted(missing)))
     rows, seen = [], set()
     for line, source in enumerate(reader, 2):
         if len(rows) >= 10000:
-            raise ValueError('الحد الأقصى 10000 بئر.')
+            raise ValueError('The maximum is 10,000 wells.')
         if None in source:
-            raise ValueError(f'الصف {line}: عدد القيم أكبر من عدد الأعمدة.')
+            raise ValueError(f'Row {line}: More values than columns.')
         r = {k: (v or '').strip() for k, v in source.items()}
         name = r['well_name']
         if not name or len(name) > 100 or name.casefold() in seen:
-            raise ValueError(f'الصف {line}: اسم البئر مفقود أو مكرر أو طويل جدًا.')
+            raise ValueError(f'Row {line}: Well name is missing, duplicated, or longer than 100 characters.')
         seen.add(name.casefold())
         if r['tubing_liner_source'] not in LINERS:
-            raise ValueError(f'الصف {line}: نوع البطانة يجب أن يكون HDPE Liner أو No Liner/Coating.')
+            raise ValueError(f'Row {line}: Liner must be HDPE Liner or No Liner/Coating.')
         for field in ['wear_rate', 'pump_speed_rpm'] + OPTIONAL_NUMERIC:
             if field not in r or (field in OPTIONAL_NUMERIC and not r[field]):
                 continue
             try:
                 value = float(r[field])
             except ValueError:
-                raise ValueError(f'الصف {line}: قيمة {field} ليست رقمًا.') from None
+                raise ValueError(f'Row {line}: Value {field} is not numeric.') from None
             if not math.isfinite(value) or value < 0:
-                raise ValueError(f'الصف {line}: {field} يجب أن يكون رقمًا غير سالب ومحدودًا.')
+                raise ValueError(f'Row {line}: {field} must be finite and non-negative.')
             r[field] = value
         rows.append(r)
     if not rows:
-        raise ValueError('الملف لا يحتوي على بيانات آبار.')
+        raise ValueError('The file has no well records.')
     return rows
 
 
