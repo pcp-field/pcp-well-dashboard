@@ -1,0 +1,9 @@
+well_name,wear_rate,pump_speed_rpm,tubing_liner_source
+DEMO-01,12,150,HDPE Liner
+DEMO-02,24,160,HDPE Liner
+DEMO-03,0,160,HDPE Liner
+DEMO-04,42,200,No Liner/Coating
+DEMO-05,70,250,No Liner/Coating
+DEMO-06,95,300,No Liner/Coating
+DEMO-07,36,160,No Liner/Coating
+DEMO-08,60,220,No Liner/Coating
